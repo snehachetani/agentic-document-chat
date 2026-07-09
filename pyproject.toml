@@ -1,0 +1,38 @@
+[project]
+name = "agentic-document-chat"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Sneha", email = "snehachetani45@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "python-dotenv",
+    "llama-index",
+    "llama-index-llms-openai",
+    "llama-index-embeddings-openai",
+    "openai",
+    "markdown-it-py>=4.2.0",
+    "sqlalchemy>=2.0",
+]
+
+[project.scripts]
+agentic-document-chat = "src.main:main"
+
+[build-system]
+requires = ["uv_build>=0.11.24,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "src"
+module-root = ""
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+]
