@@ -23,6 +23,16 @@ DATABASE_PATH=src/data/app.db
 
 `OPENAI_API_KEY` enables LLM summaries, rewrite generation, structured chat intent classification, and LlamaIndex retrieval backed by OpenAI embeddings. The default embedding model is `text-embedding-3-small`
 
+## Run Sample Evaluation
+
+The sample evaluation script runs the representative requests from `SAMPLE_REQUESTS.md` against an isolated SQLite database under `src/data`, so it does not modify `src/data/app.db`.
+
+```bash
+uv run python scripts/run_sample_requests.py
+```
+
+It prints pass/fail checks for document Q&A, section lookup, summarization, rewrite proposals, compare/accept/reject, external verification, evidence-backed proposals, negative cases, and tool traces.
+
 ## API Overview
 
 - `POST /chat`
