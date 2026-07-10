@@ -5,6 +5,7 @@ from src.changes.diff import build_text_diff
 from src.changes.store import InvalidChangeStateError, StaleChangeError, change_store
 from src.core.config import settings
 from src.documents.matching import resolve_section_id
+from src.documents.store import get_document_store
 from src.rag.intent import classify_chat_intent
 from src.rag.section_lookup import answer_section_lookup, is_section_lookup_request
 
@@ -58,7 +59,10 @@ def chat(request: ChatRequest) -> ChatResponse:
             verify_section,
         )
 
-        section_id = classified_intent.section_id or resolve_section_id(request.message)
+        section_id = resolve_existing_section_id(
+            classified_intent.section_id,
+            request.message,
+        )
 
         if not section_id:
             raise HTTPException(
@@ -110,7 +114,10 @@ def chat(request: ChatRequest) -> ChatResponse:
     if classified_intent.intent == "rewrite":
         from src.rag.rewriter import create_rewrite_proposal
 
-        section_id = classified_intent.section_id or resolve_section_id(request.message)
+        section_id = resolve_existing_section_id(
+            classified_intent.section_id,
+            request.message,
+        )
 
         if not section_id:
             raise HTTPException(
@@ -148,7 +155,10 @@ def chat(request: ChatRequest) -> ChatResponse:
     if classified_intent.intent == "summary":
         from src.rag.summarizer import summarize_section
 
-        section_id = classified_intent.section_id or resolve_section_id(request.message)
+        section_id = resolve_existing_section_id(
+            classified_intent.section_id,
+            request.message,
+        )
 
         if not section_id:
             raise HTTPException(
@@ -197,6 +207,20 @@ def chat(request: ChatRequest) -> ChatResponse:
         sources=result["source_nodes"],
         created_change_proposal=False,
     )
+
+
+def resolve_existing_section_id(
+    candidate_section_id: str | None,
+    message: str,
+) -> str | None:
+    if candidate_section_id:
+        try:
+            get_document_store().get_section(candidate_section_id)
+            return candidate_section_id
+        except KeyError:
+            pass
+
+    return resolve_section_id(message)
 
 
 def handle_change_review_intent(
