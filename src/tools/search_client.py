@@ -9,6 +9,7 @@ from typing import Any
 
 
 TAVILY_SEARCH_URL = "https://api.tavily.com/search"
+EXA_SEARCH_URL = "https://api.exa.ai/search"
 
 NASA_DOMAINS = ["nasa.gov"]
 NOAA_DOMAINS = ["noaa.gov"]
@@ -96,13 +97,36 @@ def _search(
     domains: list[str],
     max_results: int,
 ) -> list[dict[str, str]]:
-    api_key = os.getenv("TAVILY_API_KEY")
+    results = _search_tavily(
+        query=query,
+        domains=domains,
+        max_results=max_results,
+    )
+    if results:
+        return results
 
+    results = _search_exa(
+        query=query,
+        domains=domains,
+        max_results=max_results,
+    )
+    if results:
+        return results
+
+    return _offline_sample_results(
+        domains=domains,
+        max_results=max_results,
+    )
+
+
+def _search_tavily(
+    query: str,
+    domains: list[str],
+    max_results: int,
+) -> list[dict[str, str]]:
+    api_key = os.getenv("TAVILY_API_KEY")
     if not api_key:
-        return _offline_sample_results(
-            domains=domains,
-            max_results=max_results,
-        )
+        return []
 
     payload = {
         "query": query,
@@ -126,13 +150,10 @@ def _search(
     try:
         with urllib.request.urlopen(request, timeout=20) as response:
             data = json.loads(response.read().decode("utf-8"))
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-        return _offline_sample_results(
-            domains=domains,
-            max_results=max_results,
-        )
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+        return []
 
-    results = [
+    return [
         {
             "title": item.get("title", ""),
             "url": item.get("url", ""),
@@ -144,13 +165,78 @@ def _search(
         if item.get("url") and (item.get("raw_content") or item.get("content"))
     ]
 
-    if not results:
-        return _offline_sample_results(
-            domains=domains,
-            max_results=max_results,
-        )
 
-    return results
+def _search_exa(
+    query: str,
+    domains: list[str],
+    max_results: int,
+) -> list[dict[str, str]]:
+    api_key = os.getenv("EXA_API_KEY")
+    if not api_key:
+        return []
+
+    payload = {
+        "query": query,
+        "numResults": max_results,
+        "includeDomains": domains,
+        "type": "auto",
+        "contents": {
+            "text": True,
+            "highlights": True,
+        },
+    }
+
+    request = urllib.request.Request(
+        EXA_SEARCH_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "x-api-key": api_key,
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+        return []
+
+    return [
+        {
+            "title": item.get("title", ""),
+            "url": item.get("url", ""),
+            "snippet": _exa_snippet(item),
+            "retrieved_text": _exa_retrieved_text(item),
+        }
+        for item in data.get("results", [])
+        if item.get("url") and _exa_retrieved_text(item)
+    ]
+
+
+def _exa_snippet(item: dict[str, Any]) -> str:
+    highlights = item.get("highlights") or []
+    if highlights:
+        return str(highlights[0])
+
+    summary = item.get("summary")
+    if summary:
+        return str(summary)
+
+    return str(item.get("text", ""))[:500]
+
+
+def _exa_retrieved_text(item: dict[str, Any]) -> str:
+    text = item.get("text")
+    if text:
+        return str(text)
+
+    highlights = item.get("highlights") or []
+    if highlights:
+        return " ".join(str(value) for value in highlights)
+
+    summary = item.get("summary")
+    return str(summary) if summary else ""
 
 
 def _offline_sample_results(
